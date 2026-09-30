@@ -1,39 +1,28 @@
-# Fixing blurry and mis-sized apps
+# 修复模糊和尺寸错误的程序
 
-You set a fractional scale — 1.25, 1.5, 0.75 — and now some things look soft,
-some are the wrong size, and one app is definitely fine. That is not your
-imagination. Three independent mechanisms are involved and they do not agree by
-default.
+你设了一个分数缩放 —— 1.25、1.5、0.75 —— 然后有些东西看起来发虚，有些尺寸不对，还有个程序看起来完全正常。这不是你的错觉。这里涉及**三个互相独立的机制**，而它们默认并不一致。
 
-This is the mental model, then the fix.
+先讲心智模型，再讲怎么修。
 
-## The three mechanisms
+## 三个机制
 
-**1. The compositor scale.** What you set in display settings, or with
-`screensmith scale set`. KWin renders Wayland surfaces at this factor. This
-part works correctly and is not the problem.
+**1. 合成器缩放。** 就是显示设置里设的，或者用 `screensmith scale set` 设的。KWin 按这个系数渲染 Wayland 表面。这部分是**正确的，不是问题所在**。
 
-**2. Qt's rounding policy.** Qt apps do not render at arbitrary fractional
-factors by default. `QT_SCALE_FACTOR_ROUNDING_POLICY` defaults to `Round`,
-which means a scale of 1.25 becomes 1× or 2× — whichever is nearer. Your
-1.25 scale quietly turned into 1×, so widgets are the wrong size and text is
-soft. Setting `PassThrough` tells Qt to use 1.25 literally.
+**2. Qt 的舍入策略。** Qt 程序默认并不按任意分数系数渲染。`QT_SCALE_FACTOR_ROUNDING_POLICY` 默认是 `Round`，意思是 1.25 的缩放会被变成最近的 1× 或 2×。你设的 1.25 悄悄变成了 1×，于是控件尺寸不对、文字发虚。设成 `PassThrough` 就是告诉 Qt 老实用 1.25。
 
-This is almost always the cause of "I set the scale and it looks worse".
+这几乎总是"我设了缩放结果更糟"的元凶。
 
-**3. The app's own idea of pixel size.** Several toolkit and browser
-applications carry their own scale settings that are independent of everything
-above. Firefox has one. Chromium has one. Some Java apps have one.
+**3. 程序自己那套像素观。** 有几个工具包和浏览器带着**独立于以上全部**的缩放设置。Firefox 有，Chromium 有，某些 Java 程序也有。
 
-## The fix, in order
+## 按顺序修
 
-### Set the rounding policy
+### 设置舍入策略
 
 ```console
 $ screensmith rounding set PassThrough
 ```
 
-That writes `~/.config/plasma-workspace/env/screensmith-qt-scaling.desktop`:
+它会写 `~/.config/plasma-workspace/env/screensmith-qt-scaling.desktop`：
 
 ```ini
 [Desktop Entry]
@@ -42,32 +31,29 @@ Type=Application
 X-Plasma-API=develprovenfalse
 ```
 
-**Log out and back in.** Environment variables are read when your session
-starts. This is the step people skip, then conclude screensmith does not work.
+**注销后重新登录。** 环境变量是在你的会话启动时读取的。这是大家会跳过的一步，然后得出"screensmith 没用"的结论。
 
-Why the `plasma-workspace/env/` directory and not `~/.bashrc` or
-`/etc/environment`: Plasma launches your applications itself, and it only
-sources that directory. Your shell profile is not involved.
+为什么是 `plasma-workspace/env/` 目录，而不是 `~/.bashrc` 或 `/etc/environment`：**是 Plasma 在启动你的程序**，而它只加载那个目录。你的 shell 配置根本不参与。
 
-Check it took:
+确认生效：
 
 ```console
 $ screensmith rounding get
 PassThrough
 ```
 
-The four values:
+四个可选值：
 
-| Value | Behaviour |
+| 值 | 行为 |
 | --- | --- |
-| `PassThrough` | Use the fractional factor literally. Correct, if slightly slower. |
-| `Round` | Nearest whole multiple. Qt's default, and the source of the problem. |
-| `Ceil` | Round up. |
-| `Floor` | Round down. |
+| `PassThrough` | 老实使用分数系数。正确，只是稍慢一点。 |
+| `Round` | 吸附到最近的整数倍。Qt 的默认值，也是问题的来源。 |
+| `Ceil` | 向上取整。 |
+| `Floor` | 向下取整。 |
 
-Prefer `PassThrough` whenever a fractional scale is active.
+只要有分数缩放在生效，就优先用 `PassThrough`。
 
-### Confirm nothing is overriding it
+### 确认没有别的东西覆盖它
 
 ```console
 $ screensmith doctor
@@ -76,128 +62,106 @@ $ screensmith doctor
          multiples and look wrong. Run: screensmith rounding set PassThrough
 ```
 
-If `doctor` is clean and things still look wrong, something outside Plasma is
-setting the variable. Check for a stray definition:
+如果 `doctor` 干净但东西还是不对，那说明 Plasma 之外有东西在设这个变量。找一下：
 
 ```console
 $ grep -rn SCALE_FACTOR_ROUNDING ~/.bashrc ~/.profile ~/.zshrc /etc/environment 2>/dev/null
 ```
 
-One exists, delete it. Plasma's env directory wins for Plasma-spawned apps
-anyway, but your terminal might disagree, which causes its children to
-misbehave.
+找到了就删掉。对 Plasma 启动的程序，`plasma-workspace/env/` 优先，但你的终端可能持不同意见，进而导致它的子进程行为异常。
 
-## Per-application fixes
+## 各程序的单独修复
 
-These are outside screensmith's scope, and also the part you will spend the
-most time on, because each application has its own opinion.
+这些超出了 screensmith 的范围，但也会是你花时间最多的部分，因为每个程序都有自己那套意见。
 
 ### Firefox
 
-Firefox ignores the compositor scale unless you tell it otherwise, and it is
-usually the one that looks wrong.
+Firefox 会无视合成器缩放，除非你明确告诉它，所以它通常就是那个看起来不对的。
 
 ```
 about:config
 ```
 
-| Preference | Value | Why |
+| 首选项 | 值 | 为什么 |
 | --- | --- | --- |
-| `layout.css.devPixelsPerPx` | your scale, e.g. `1.25` | tell Firefox the real factor |
-| `layout.css.cachedPixelsPerPx` | `1` | let it re-render on DPI change |
-| `gfx.webrender.software` | `true` if text is broken | force the software rasteriser |
+| `layout.css.devPixelsPerPx` | 你的缩放，比如 `1.25` | 让 Firefox 知道真实系数 |
+| `layout.css.cachedPixelsPerPx` | `1` | 允许它在 DPI 变化时重新渲染 |
+| `gfx.webrender.software` | 文字有问题时设 `true` | 强制软件光栅化 |
 
-Firefox also ships its own per-display scale picker. `about:config` is more
-reliable when the compositor scale is fractional, because the picker only
-offers whole percentages.
+Firefox 自己也带一个按显示器选的缩放选择器。合成器缩放是分数的时候，`about:config` 比那个选择器更靠谱，因为选择器只提供整数百分比。
 
-### Chromium and Electron
+### Chromium 和 Electron
 
-Chromium picks up the compositor scale on Wayland. If it looks wrong:
+Chromium 在 Wayland 下会接上合成器缩放。如果看起来不对：
 
 ```console
 $ chromium --force-device-scale-factor=1.25
 ```
 
-For a permanent fix, use a launcher override. Do not set this globally —
-Chromium applies it to every window including popups, which causes mismatched
-sizes.
+想永久生效就用启动器覆盖。**不要**全局设置 —— Chromium 会把它应用到每个窗口包括弹出窗口，导致尺寸对不上。
 
-Electron apps (Slack, Discord, VS Code) each take the same flag. VS Code also
-honours `"window.titleBarStyle"` and, for editor scaling:
+Electron 程序（Slack、Discord、VS Code）吃同一个标志。VS Code 还认 `"window.titleBarStyle"`，以及编辑器缩放：
 
 ```json
 { "editor.fontSize": 15 }
 ```
 
-### GTK apps
+### GTK 程序
 
-GTK4 apps respect the compositor scale. If one is off, check that it is not
-being forced:
+GTK4 程序尊重合成器缩放。如果某个不对，检查是不是被强制指定了：
 
 ```console
 $ gsettings get org.gnome.desktop.interface text-scaling-factor
 ```
 
-A non-default `1.0` there fights the compositor scale. Reset it if you did not
-set it on purpose.
+那里出现非默认的 `1.0` 会和合成器缩放打架。如果不是你有意设的，就重置掉。
 
-### Java apps
+### Java 程序
 
-Java's own scaling is separate and famously stubborn:
+Java 自己的缩放独立而且出名地顽固：
 
 ```console
 $ java -Dsun.java2d.uiScale=1.25 -jar something.jar
 ```
 
-Add `-Dsun.java2d.uiScale=1` to *disable* Java's scaling and let the compositor
-handle it, which is usually better on Wayland.
+加上 `-Dsun.java2d.uiScale=1` 可以**禁用** Java 缩放、交给合成器处理，在 Wayland 上这通常更好。
 
 ### Wine
 
-Wine applications scale with the XWayland multiplier, not the compositor scale.
-If an X11 app is the wrong size, it is almost always the XWayland knob:
+Wine 程序跟随的是 XWayland 倍数，而不是合成器缩放。如果某个 X11 程序尺寸不对，几乎肯定是 XWayland 那个开关：
 
 ```console
 $ screensmith xwayland get
 $ screensmith xwayland set 1.25
 ```
 
-KWin keeps this in step with your display scale automatically when you change
-the scale through Plasma or `kscreen-doctor`, so you rarely need to touch it.
-It drifts when `kwinrc` gets restored from an old backup. `screensmith doctor`
-flags that:
+KWin 在你通过界面或 `kscreen-doctor` 改缩放时会自动保持这个同步，所以你很少需要手动动它。它走偏通常是因为 `kwinrc` 从旧备份里被恢复了。`screensmith doctor` 会标记这种情况：
 
 ```console
 $ screensmith doctor
 [  warn ] XWayland scale: 1.25 in kwinrc, but the display scale is 1
 ```
 
-### Apps that ignore everything
+### 完全无视一切的程序
 
-Some will not scale correctly, full stop. Image viewers showing pixel art,
-some scientific tools with hard-coded assumptions, certain games. There is no
-fix; you change the application's own settings or you run it in a window sized
-to suit.
+有些就是没法正确缩放，没有办法。显示像素画的图片查看器、某些对像素有硬编码假设的科学工具、某些游戏。没有解法；你要么改程序自己的设置，要么把窗口开成它合适的大小。
 
-## Working out which problem you have
+## 怎么判断你遇到的是哪种问题
 
 ```console
 $ screensmith doctor
 $ screensmith outputs
 ```
 
-| Symptom | Cause | Fix |
+| 症状 | 原因 | 解法 |
 | --- | --- | --- |
-| Everything is soft | Rounding policy | `screensmith rounding set PassThrough`, log out |
-| Widgets wrong size, text soft | Rounding policy | Same |
-| One app wrong, rest fine | App-specific scale | See above, per application |
-| X11 apps smaller than the rest | XWayland scale | `screensmith xwayland set <scale>` |
-| Fixed after a config change | Stale process | Log out and back in |
+| 所有东西都发虚 | 舍入策略 | `screensmith rounding set PassThrough`，注销 |
+| 控件尺寸不对、文字发虚 | 舍入策略 | 同上 |
+| 只有一个程序不对，别的正常 | 程序自身的缩放 | 见上面各程序章节 |
+| X11 程序比其他的都小 | XWayland 缩放 | `screensmith xwayland set <缩放>` |
+| 改完配置后好了 | 进程是旧的 | 注销重新登录 |
 
-If the problem started right after a scale change and affects *everything*, it
-is the rounding policy. That is the common case, and it is why `screensmith`
-warns you at the moment you set a fractional scale:
+如果问题是**在改完缩放后立刻出现、并且影响所有东西**，那就是舍入策略。这是常见情况，也是 screensmith 在你设分数缩放的那一刻就警告你的原因：
 
 ```console
 $ screensmith scale set eDP-1 1.25
@@ -206,7 +170,7 @@ warning: 1.25 (125%) is a fractional scale but QT_SCALE_FACTOR_ROUNDING_POLICY i
 unset; widgets may render blurry. Try: screensmith rounding set PassThrough
 ```
 
-## Starting over
+## 推倒重来
 
 ```console
 $ screensmith scale reset
@@ -215,27 +179,25 @@ $ screensmith font-dpi reset
 $ screensmith xwayland reset
 ```
 
-Then log out and in. Note that per-application settings — Firefox's
-`devPixelsPerPx`, a Chromium flag — are not touched by any of these. You have
-to undo those separately.
+然后注销重新登录。注意**各程序自己的设置** —— Firefox 的 `devPixelsPerPx`、Chromium 的启动标志 —— 这些上述命令都不会碰，你得单独撤销。
 
-Before experimenting on a machine you care about:
+在你在意的机器上做实验之前：
 
 ```console
 $ screensmith backup
 $ ls ~/.config/screensmith-backups/
 ```
 
-And if you break something badly:
+如果搞得一团糟：
 
 ```console
 $ screensmith restore ~/.config/screensmith-backups/20260930-141205
 ```
 
-## A note on performance
+## 关于性能的一点说明
 
-`PassThrough` makes Qt render at genuinely fractional device scales instead of
-snapping to whole multiples. On modern hardware this is not perceptible. On a
-weak integrated GPU with a large screen at 1.75, you may notice compositing
-cost. If so, `Round` is the performance escape hatch — at the cost of correct
-sizing, which is the whole point of this document.
+`PassThrough` 让 Qt 真正按分数设备像素比渲染，而不是吸附到整数倍。在现代硬件上这个差别察觉不到。在弱核显上跑大屏加 1.75，可能会感觉到合成开销。真遇到这种情况，`Round` 就是性能上的逃生口 —— 代价是尺寸不对，而尺寸不对正是本文要解决的东西。
+
+---
+
+> **本项目全程由 OpenCode 自动生成，无人工干预。** 未经人工撰写或审阅。

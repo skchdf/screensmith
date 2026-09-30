@@ -1,9 +1,10 @@
-# Contributing
+# 贡献指南
 
-Screensmith is a small tool with a deliberately small dependency footprint. Most
-contributions should be one of the three things below.
+screensmith 是个小工具，依赖足迹被刻意控制得很小。大部分改动应该属于下面三类之一。
 
-## Setup
+> **本项目全程由 OpenCode 自动生成，无人工干预。** 未经人工撰写或审阅。
+
+## 环境准备
 
 ```console
 $ git clone https://github.com/skchdf/screensmith
@@ -12,49 +13,35 @@ $ python -m venv --system-site-packages .venv
 $ .venv/bin/python -m pip install -e .
 ```
 
-No runtime dependencies, and please keep it that way. A desktop utility that
-needs a virtualenv is a desktop utility nobody runs. If a change seems to want
-a dependency, it probably wants a shell-out to `kscreen-doctor` instead.
+无运行时依赖，并且请保持这样。一个需要虚拟环境的桌面工具，就是没人愿意用的桌面工具。如果某个改动看起来需要加依赖，那它多半是应该改成 shell 调用 `kscreen-doctor`。
 
-## Tests
+## 测试
 
 ```console
 $ python -m unittest discover -s tests -t tests
 ```
 
-That path is the supported one and needs nothing installed. `pytest` works too
-if you have it, since the tests are plain `unittest.TestCase` classes.
+这条路径是受支持的，不需要装任何东西。如果你手头有 `pytest` 也能用，因为测试都是普通的 `unittest.TestCase` 类。
 
-**The suite must not touch the machine it runs on.** This is not a stylistic
-preference: the tests are expected to pass identically on your laptop, on a
-Plasma session, and on a bare CI runner. Three things have to be neutralised
-for that, and all three are done in `CliTestCase.run_cli` and
-`_run` in `test_doctor.py`:
+**测试套件绝不允许依赖它所运行的那台机器。** 这不是风格偏好：测试应该在你的笔记本上、在运行 Plasma 的会话里、以及在没有任何 Plasma 的 CI runner 上**结果完全一致**。为此必须中和掉三样东西，而且 `CliTestCase.run_cli` 和 `test_doctor.py` 里的 `_run` 三样都做了：
 
-- `Session.probe`, which reads the real `$XDG_SESSION_TYPE` and Plasma version
-- `have("kscreen-doctor")`, which is true on a Plasma desktop and false on CI
-- `query_outputs`, which shells out to the running KWin
+- `Session.probe`，它会读取真实的 `$XDG_SESSION_TYPE` 和 Plasma 版本
+- `have("kscreen-doctor")`，在 Plasma 桌面上是 True，在 CI 上是 False
+- `query_outputs`，它会调用正在运行的 KWin
 
-Fixture data (captured `kscreen-doctor` output, `kwinrc`,
-`kwinoutputconfig.json`) lives in `tests/support.py`. Config homes are
-temporary directories.
+样本数据（抓下来的 `kscreen-doctor` 输出、`kwinrc`、`kwinoutputconfig.json`）都在 `tests/support.py`。配置目录用临时目录。
 
-If you add a test that depends on any of the above being present in the
-environment, it will pass locally and fail in CI. `status` and `doctor` have
-explicit tests for the "kscreen-doctor is missing" path; keep that coverage when
-touching either.
+如果你写了个依赖上面那些东西存在于环境中的测试，它会在本地通过、在 CI 挂掉。`status` 和 `doctor` 已经有针对"kscreen-doctor 不存在"这条路径的显式测试，动这两个命令时记得保住这份覆盖。
 
-You can check for accidental environment dependencies by running the suite with
-`kscreen-doctor` off `$PATH`:
+可以直接这样检查有没有意外的环境依赖：
 
 ```console
 $ PATH=/usr/bin:/bin python -m unittest discover -s tests -t tests
 ```
 
-178 tests currently. Adding behaviour without adding a test will be asked about
-in review.
+目前 178 个测试。加了行为不加测试，review 的时候一定会被问。
 
-## Style
+## 代码风格
 
 ```console
 $ pip install ruff
@@ -62,62 +49,37 @@ $ ruff check src tests
 $ ruff format --check src tests
 ```
 
-Line length 110. Type hints on public functions, `from __future__ import
-annotations` at the top of every module.
+行长 110。公开函数要有类型标注，每个模块顶部写 `from __future__ import annotations`。
 
-Docstrings explain *why*, not *what*. If a line of code needs a comment to say
-what it does, the code is written wrong.
+文档字符串解释**为什么**，不是**是什么**。如果一行代码需要注释来说明它在干什么，那说明代码写错了。
 
-## Things worth knowing before you change them
+## 动手改之前值得知道的事
 
-**Config writes must stay atomic.** `fsutil.atomic_write` writes a temp file,
-fsyncs, renames, then fsyncs the directory. KWin and plasmashell read these
-files continuously; a half-written `kwinrc` can leave a session that will not
-start. Do not replace it with a plain `write_text`.
+**配置写入必须保持原子性。** `fsutil.atomic_write` 的流程是写临时文件、fsync、rename、再 fsync 目录。KWin 和 plasmashell 一直在读这些文件，写坏一半的 `kwinrc` 可能导致会话起不来。不要把它换成普通的 `write_text`。
 
-**Do not parse KDE INI with `configparser`.** It is case-insensitive by
-default and mangles the `[Tiling][uuid]` section names KWin uses. `ini.py` edits
-text in place so comments and ordering survive. There is a test asserting that
-every untouched line is byte-identical; keep it passing.
+**不要用 `configparser` 解析 KDE 的 INI。** 它默认大小写不敏感，而且会搞坏 KWin 用的 `[Tiling][uuid]` 这种分组名。`ini.py` 是原地改文本，这样注释和顺序才能活下来。有个测试断言所有没碰过的行都是逐字节一致的；别让它挂。
 
-**Env-var settings only take effect at login.** Anything touching
-`plasma-workspace/env` must tell the user to log out and back in. Do not let a
-command imply it has already taken effect.
+**环境变量的改动只在登录时生效。** 任何碰到 `plasma-workspace/env` 的操作都必须告诉用户去注销再登录。不要让命令暗示它已经生效了。
 
-**Preserve file permissions.** `fsutil.mode_of` exists because a user may have
-made their config group-writable deliberately.
+**保留文件权限。** `fsutil.mode_of` 存在的原因是用户可能特意把自己的配置改成组可写。
 
-**Own your keys, do not own the file.** Screensmith writes exactly one env
-plugin, `screensmith-qt-scaling.desktop`. Never touch a plugin the user
-created, and never write to `~/.config/environment`.
+**只拥有你自己的 key，不要拥有整个文件。** screensmith 只写一个 env 插件，`screensmith-qt-scaling.desktop`。绝不要碰用户自己建的插件，也绝不要写 `~/.config/environment`。
 
-**Stay honest in the docs.** The tutorials quote real command output. If you
-change a message, update the README and the tutorials. If a claim in the README
-has not been verified on a real session, say so in the Status section rather
-than implying it was.
+**文档要诚实。** 教程里引用的是真实命令输出。你改了某条消息，就把 README 和教程一起更新。如果 README 里有什么结论没在真实会话上验证过，那就在"状态"一节里写明，而不是让人以为验证过。
 
-## Adding a command
+## 新增一个命令
 
-1. Put the logic in the relevant module (`scale.py`, `qt.py`, `envfile.py`,
-   `output.py`) as pure functions where possible, so it is testable without a
-   session.
-2. Add the argparse wiring and a thin `cmd_*` handler in `cli.py`.
-3. Give the command a `--json` mode if its output is worth scripting.
-4. Tests in `tests/test_cli.py` for the handler, in the module's own test file
-   for the logic.
-5. README command list, and `docs/CHEATSHEET.md`.
-6. Add a bash completion branch in `completions/screensmith.bash`.
+1. 把逻辑放进对应模块（`scale.py`、`qt.py`、`envfile.py`、`output.py`）里，尽量写成纯函数，这样不用会话就能测。
+2. 在 `cli.py` 里加 argparse 接线和一层很薄的 `cmd_*` 处理函数。
+3. 如果输出值得写脚本，给这个命令加一个 `--json` 模式。
+4. 处理函数放 `tests/test_cli.py` 的测试，逻辑放对应模块自己的测试文件。
+5. 更新 README 的命令列表，以及 `docs/CHEATSHEET.md`。
+6. 在 `completions/screensmith.bash` 里加对应的补全分支。
 
-## Commit messages and PRs
+## 提交信息和 PR
 
-Explain the reasoning, not the diff. If you found something surprising — a
-KWin behaviour you did not expect, a config file that does not match the
-documentation — say so in the PR description even if you did not change it.
-That is usually the most valuable part of a contribution.
+解释思路，而不是复述 diff。如果发现了什么出乎意料的事情 —— 某个 KWin 行为和预期不符、某个配置文件和文档说的不一样 —— 就算你没改它，也请在 PR 描述里写出来。那通常是一次贡献里最有价值的部分。
 
-## Verified configurations
+## 已验证的配置
 
-The README lists what has been exercised on real hardware and what has only
-been tested against fixtures. If you can run screensmith on something not in
-that list, please open a PR or an issue with the output — even a "works on
-Plasma 6.1, X11 session" note is useful.
+README 里列出了在真实硬件上跑过什么、哪些只是对着样本数据测过。如果你能在这个清单之外的环境里跑一下 screensmith，请开 PR 或 issue 把输出贴上来 —— 哪怕只是一句"Plasma 6.1 的 X11 会话下能跑"也有用。

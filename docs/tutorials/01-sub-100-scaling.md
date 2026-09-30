@@ -1,40 +1,34 @@
-# Sub-100% scaling on KDE Plasma
+# KDE Plasma 上低于 100% 的缩放
 
-Plasma's display settings start at 100% and go up. There is no way to make the
-desktop *smaller* than the panel reports — through the GUI.
+Plasma 的显示设置从 100% 起步，往上加。它没有任何办法让桌面**比面板报的还小** —— 至少在界面里没有。
 
-KWin has no such restriction. `kscreen-doctor` will happily accept anything from
-0.25 upward, and on a small screen that is often exactly what you want.
+KWin 没有这个限制。`kscreen-doctor` 乐于接受 0.25 到 10 之间的任何值，而小屏幕往往正好需要这个。
 
-Written against Plasma 6.7.5 on Wayland. Verified by setting 0.75 on a
-1366×768 panel and reading back what the session reported.
+本文基于 Plasma 6.7.5 + Wayland 写成。验证方式是在一块 1366×768 面板上设成 0.75，然后读回会话报告的内容。
 
-## Why you might want it
+> **本项目全程由 OpenCode 自动生成，无人工干预。** 未经人工撰写或审阅。
 
-A 1366×768 laptop panel is small. At 100% you get a 1366×768 workspace, which
-fits maybe one full-size browser window side by side with a file manager. If
-you are willing to accept smaller text, dropping to 75% turns that into a
-1821×1024 workspace. That is a 33% increase in area.
+## 你为什么会想要这个
 
-The arithmetic is simple: KWin divides the physical resolution by the scale
-factor to get the logical workspace.
+1366×768 是廉价笔记本用了十年的分辨率。它很小。在 100% 下你得到一个 1366×768 的工作区，大概只放得下一个全屏浏览器窗口再加一个文件管理器。如果你能接受更小的字，降到 75% 就把它变成 1821×1024 的工作区，**面积增加 33%**。
+
+算法很简单：KWin 用物理分辨率除以缩放系数，得到逻辑工作区。
 
 ```
-logical width  = 1366 / 0.75 = 1821
-logical height =  768 / 0.75 = 1024
+逻辑宽度 = 1366 / 0.75 = 1821
+逻辑高度 =  768 / 0.75 = 1024
 ```
 
-| Scale | Workspace | Compared to 100% |
+| 缩放 | 工作区 | 相对 100% |
 | --- | --- | --- |
-| 1.0 | 1366×768 | baseline |
-| 0.875 | 1561×878 | +14% area |
-| 0.75 | 1821×1024 | +33% area |
-| 0.6 | 2277×1280 | +78% area |
+| 1.0 | 1366×768 | 基准 |
+| 0.875 | 1561×878 | 面积 +14% |
+| 0.75 | 1821×1024 | 面积 +33% |
+| 0.6 | 2277×1280 | 面积 +78% |
 
-Going much below about 0.7 stops being useful: text gets too small to read
-comfortably, and you start needing the display's magnifier.
+低于 0.7 左右就没意义了：文字小到读着难受，你会开始需要显示器的放大镜功能。
 
-## Doing it with screensmith
+## 用 screensmith 来做
 
 ```console
 $ screensmith outputs
@@ -49,33 +43,29 @@ warning: 0.75 (75%) is a fractional scale but QT_SCALE_FACTOR_ROUNDING_POLICY is
 unset; widgets may render blurry. Try: screensmith rounding set PassThrough
 ```
 
-It applies immediately. No logout, no restart.
+立刻生效。不用注销，不用重启。
 
-If you only want smaller *text* rather than smaller everything, use font DPI
-instead and leave scale at 1:
+如果你只想让**文字**变小而不是所有东西都变小，用字体 DPI，缩放保持 1：
 
 ```console
 $ screensmith font-dpi set 84
 ```
 
-That is a gentler change. Everything keeps its layout; only text shrinks.
+这个改动更温和。所有东西保持原有布局，只有文字缩小。
 
-## Doing it by hand
+## 手动操作
 
-Two ways. Use the first unless you have a reason not to.
+两种方式。除非你有特别的理由，否则用第一种。
 
-### The right way: kscreen-doctor
+### 正确的方式：kscreen-doctor
 
 ```console
 $ kscreen-doctor output.LVDS-1.scale.0.75
 ```
 
-This talks to the running KWin, applies the change immediately, and KWin
-persists it to `~/.config/kwinoutputconfig.json` for you. It also keeps
-`kwinrc`'s `[Xwayland] Scale` in step automatically, which is the detail you
-would otherwise have to handle yourself.
+它和正在运行的 KWin 通信，立刻生效，并且 KWin 会自己把结果持久化到 `~/.config/kwinoutputconfig.json`。它还会自动同步 `kwinrc` 里的 `[Xwayland] Scale` —— 这个细节否则你得自己处理。
 
-Confirm it stuck:
+确认生效了：
 
 ```console
 $ kscreen-doctor -o | grep -A8 LVDS-1
@@ -90,22 +80,18 @@ Output: 1 LVDS-1 3c1c1f29-e7e2-4815-8686-01c82e6775e1
 	Scale: 	0.75
 ```
 
-Note that `Geometry` still reads 1366×768 — that is the physical size. The
-logical workspace is not shown here, which is why `screensmith outputs` prints
-it separately.
+注意 `Geometry` 仍然显示 1366×768 —— 那是物理尺寸。逻辑工作区在这里不显示，所以 `screensmith outputs` 会单独把它列出来。
 
-### The other way: editing kwinoutputconfig.json
+### 另一种方式：改 kwinoutputconfig.json
 
-Only useful when no session is running: provisioning a machine, or over SSH
-with no active session. KWin overwrites this file when the session starts, so
-changes made while it is running get clobbered.
+只有在会话没在运行时才有用：做机器预配置，或者通过 SSH 操作而没有活动会话。KWin 在会话启动时会覆盖这个文件，所以运行期间做的改动会被冲掉。
 
 ```console
 $ cp ~/.config/kwinoutputconfig.json ~/.config/kwinoutputconfig.json.bak
 $ ${EDITOR:-nano} ~/.config/kwinoutputconfig.json
 ```
 
-Find the entry for your connector and change its `"scale"`:
+找到你那块 connector 对应的条目，改它的 `"scale"`：
 
 ```json
 {
@@ -121,23 +107,19 @@ Find the entry for your connector and change its `"scale"`:
 }
 ```
 
-The scale is a plain multiplier. `0.75`, not `75`. Match the existing file's
-four-space indentation so the diff stays readable — KWin writes it that way and
-a reformatted file is unpleasant to `git diff` later.
+缩放是一个纯粹的倍数。是 `0.75`，不是 `75`。保持文件原有的四空格缩进 —— KWin 就是这么写的，而且格式被重排过的文件以后用 `git diff` 看会很难受。
 
-Same effect, one command:
+同样的效果，一条命令：
 
 ```console
 $ screensmith scale set LVDS-1 0.75 --offline
 ```
 
-This takes a backup first, then tells you plainly that a running session will
-overwrite it.
+它会先备份，然后直白地告诉你运行中的会话会覆盖这个改动。
 
-## Multiple displays
+## 多显示器
 
-Each output has its own scale, and they do not have to match. This is useful
-when you have a small laptop panel and a large external monitor:
+每块输出有自己的缩放，而且**不必相同**。小笔记本屏配大外接显示器时这很有用：
 
 ```console
 $ screensmith scale set LVDS-1 0.75
@@ -149,24 +131,20 @@ on     LVDS-1  0.75   1366x768  1821x1024 logical
 on     HDMI-1  1      2560x1440 2560x1440 logical
 ```
 
-Caveat worth knowing: KWin applies a *single* XWayland multiplier session-wide
-(`kwinrc [Xwayland] Scale`), so X11 apps cannot follow per-monitor scales
-perfectly. Wayland apps handle it correctly. If you use a lot of X11
-software on mismatched monitors, this bites.
+有个值得知道的坑：KWin 对 XWayland 只应用**一个全局**倍数（`kwinrc [Xwayland] Scale`），所以 X11 程序无法完美跟随按显示器不同的缩放。Wayland 程序处理得正确。如果你经常在不匹配的显示器上用很多 X11 软件，这会咬人。
 
-## Going back
+## 改回去
 
 ```console
-$ screensmith scale reset          # every enabled output to 1
-$ screensmith scale reset LVDS-1   # just one
+$ screensmith scale reset          # 所有启用的输出重置为 1
+$ screensmith scale reset LVDS-1   # 只重置一块
 ```
 
-Or `kscreen-doctor output.LVDS-1.scale.1`.
+或者 `kscreen-doctor output.LVDS-1.scale.1`。
 
-## If it looks wrong
+## 如果看起来不对
 
-Run the diagnostic. It knows about the three things that make scaling look
-broken:
+跑一下诊断。它知道三件会让缩放看起来坏掉的事：
 
 ```console
 $ screensmith doctor
@@ -176,21 +154,15 @@ $ screensmith doctor
          multiples and look wrong. Run: screensmith rounding set PassThrough
 ```
 
-The rounding-policy warning is the one that matters. 0.75 is a fractional
-scale, and Qt's default rounding makes widgets render at whole multiples —
-1× or 2× — rather than the 0.75 you asked for. Fix it, then log out and back
-in:
+舍入策略那条警告是要紧的。0.75 是分数缩放，而 Qt 的默认舍入会让控件渲染在整数倍上 —— 1× 或 2× —— 而不是你要的 0.75。修掉它，然后注销重新登录：
 
 ```console
 $ screensmith rounding set PassThrough
 ```
 
-See [Fixing blurry and mis-sized apps](03-blurry-apps.md) for what that is
-actually doing.
+那东西到底在做什么，见[修复模糊和尺寸错误的程序](03-blurry-apps.md)。
 
-## Reading the config back
-
-If you want to script against this:
+## 用脚本读回来
 
 ```console
 $ screensmith --json scale get
@@ -199,17 +171,10 @@ $ screensmith --json scale get
 }
 ```
 
-## What this does not do
+## 它做不到的事
 
-- **It does not change resolution.** Your panel is still 1366×768. The desktop
-  just believes it has more room, and draws smaller. If you want genuinely
-  more pixels, you need a higher-resolution panel.
-- **It does not help non-Qt apps.** GTK4, Electron and Java applications each
-  handle scaling differently, and some ignore it. Firefox, for example, needs
-  its own `layout.css.devPixelsPerPx` setting, which KWin's scale does not
-  touch.
-- **It does not apply to X11 sessions.** Fractional scaling is a Wayland-only
-  feature in KWin. `screensmith doctor` will say so if you are on X11.
+- **它不改分辨率。** 你的面板还是 1366×768。桌面只是"以为"自己有更多空间，于是画得更小。想要真正的更多像素，你需要一块分辨率更高的面板。
+- **它对非 Qt 程序无效。** GTK4、Electron、Java 程序各自处理缩放的方式不同，有些直接无视。比如 Firefox 有自己的 `layout.css.devPixelsPerPx` 设置，KWin 的缩放完全不碰它。
+- **它在 X11 会话下不适用。** 分数缩放是 KWin 的 Wayland 独占特性。如果你跑在 X11 上，`doctor` 会告诉你。
 
-Next: [small screen survival guide](02-small-screen.md) —
-the other things that help when a screen is genuinely small.
+下一篇：[小屏幕自救指南](02-small-screen.md) —— 当屏幕真的很小时，还有哪些东西真的有用。

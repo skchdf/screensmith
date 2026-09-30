@@ -1,15 +1,12 @@
 # screensmith
 
-Display and scaling surgery for KDE Plasma — including the scale factors the
-settings GUI will not offer you.
+KDE Plasma 的显示与缩放手术刀 —— 包括设置界面不给你看的那部分缩放选项。
 
-Plasma's display settings offer a fixed ladder: 100%, 125%, 150%, 175%, 200%,
-and nothing below 100%. KWin itself has no such limit. If you want 75% on a
-1366×768 laptop panel, or 137.5%, the GUI cannot get you there — you have to
-edit `kwinoutputconfig.json` and hope you typed it right.
+Plasma 的显示设置只有一条固定的阶梯：100%、125%、150%、175%、200%，而且**最低只到 100%**。KWin 本身没有这个限制。如果你想要 75%（比如 1366×768 的笔记本屏），或者 137.5%，界面做不到 —— 你只能去改 `kwinoutputconfig.json`，然后祈祷自己没敲错。
 
-screensmith is a small CLI that does it properly, and tells you when the result
-will look wrong.
+screensmith 是个小命令行工具，把这件事做对，并且会在结果看起来不对的时候告诉你。
+
+> **本项目全程由 OpenCode 自动生成，无人工干预。** 代码、文档、测试均由 AI 代理独立产出，未经人工撰写或审阅。请据此谨慎评估内容质量。
 
 ```console
 $ screensmith scale set LVDS-1 0.75
@@ -17,25 +14,17 @@ LVDS-1: 1 (100%) -> 0.75 (75%)
   workspace is now 1821x1024 logical pixels
 ```
 
-## Why
+## 为什么需要它
 
-Three things make display scaling on Plasma confusing, and all three are
-things the settings UI either hides or gets wrong:
+Plasma 的缩放有三件事让人困惑，而且**每一件都是设置界面要么藏起来、要么搞错的**：
 
-1. **There is no sub-100% option.** A small laptop screen often wants exactly
-   that. KWin accepts any factor from 0.25 up.
-2. **Fractional scale looks blurry for no obvious reason.** Qt's default
-   `QT_SCALE_FACTOR_ROUNDING_POLICY=Round` snaps a 1.25 scale to integer device
-   pixels, so widgets render at the wrong size and text looks soft. The fix is
-   `PassThrough`, and it lives in an environment variable that you have to know
-   to set *before* login.
-3. **X11 apps drift out of step.** KWin applies the display scale to Wayland
-   clients automatically, but XWayland clients go through
-   `kwinrc [Xwayland] Scale`, a separate knob that defaults to 1.
+1. **没有低于 100% 的选项。** 小屏幕笔记本经常正好需要这个。KWin 接受 0.25 到 10 之间的任何值。
+2. **分数缩放莫名其妙地糊。** Qt 的默认 `QT_SCALE_FACTOR_ROUNDING_POLICY=Round` 会把 1.25 吸附到整数设备像素，结果就是控件尺寸不对、文字发虚。解法是 `PassThrough`，但它藏在一个环境变量里，你必须事先就知道要在登录**之前**设好它。
+3. **X11 程序会掉队。** KWin 会自动把显示缩放应用到 Wayland 客户端，但 XWayland 客户端走的是 `kwinrc [Xwayland] Scale`，一个默认值为 1 的独立开关。
 
-`screensmith doctor` checks all three and tells you which one is biting you.
+`screensmith doctor` 会把这三件事全查一遍，并告诉你是哪一件在折磨你。
 
-## Install
+## 安装
 
 ```console
 $ git clone https://github.com/skchdf/screensmith
@@ -43,16 +32,13 @@ $ cd screensmith
 $ python -m pip install --user .
 ```
 
-No runtime dependencies. Python 3.10+. You need `kscreen-doctor`, which ships
-with the `kscreen` package that Plasma already pulls in.
+无运行时依赖。Python 3.10 以上。你需要 `kscreen-doctor`，它由 Plasma 本来就装的 `kscreen` 软件包提供。
 
-Shell completions are in `completions/`; copy the one for your shell to
-`/etc/bash_completion.d/` or your `$fpath`.
+Shell 补全在 `completions/` 目录，把对应你 shell 的那个文件拷到 `/etc/bash_completion.d/` 或你的 `$fpath`。
 
-## Use
+## 使用
 
-Everything is a subcommand, and every command takes `--json` if you are
-scripting it.
+全部是子命令，每个命令都支持放在子命令前面的 `--json`，方便写脚本。
 
 ```console
 $ screensmith status
@@ -67,66 +53,61 @@ XWayland scale   1
 Font DPI         default
 ```
 
-### Scale a display
+### 调整某块屏幕的缩放
 
-Accepts either a multiplier or a percentage, whichever your fingers remember:
+倍数和百分比都认，看你手指头记得哪种：
 
 ```console
-$ screensmith scale set LVDS-1 1.25      # multiplier
-$ screensmith scale set LVDS-1 125%      # percentage, same result
-$ screensmith scale set LVDS-1 0.75      # below 100%: 1366x768 -> 1821x1024
-$ screensmith scale reset                # every enabled output back to 1
+$ screensmith scale set LVDS-1 1.25      # 倍数
+$ screensmith scale set LVDS-1 125%      # 百分比，结果相同
+$ screensmith scale set LVDS-1 0.75      # 低于 100%：1366x768 -> 1821x1024
+$ screensmith scale reset                # 所有启用的输出重置回 1
 ```
 
-Set a display that is not plugged in right now (headless, or over SSH) by
-writing the config file directly:
+想给当前没插着的屏幕设置（比如无头机器，或者 SSH 上去时），直接写配置文件：
 
 ```console
 $ screensmith scale set HDMI-1 2 --offline
 ```
 
-KWin reads that file at session start. It will overwrite the value the moment
-the session comes up, so this is for provisioning a machine, not for adjusting
-the one in front of you.
+KWin 会在会话启动时读这个文件。会话运行期间做的改动会被覆盖，所以这个命令是用来给机器做预配置的，不是用来调整眼前这台。
 
-### Make fractional scale sharp
+### 让分数缩放变清晰
 
 ```console
 $ screensmith rounding set PassThrough
 ```
 
-Needs a logout to take effect. `screensmith doctor` will keep reminding you
-until it does.
+需要注销后重新登录才生效。在那之前 `screensmith doctor` 会一直提醒你。
 
-### Text and X11 apps
+### 文字与 X11 程序
 
 ```console
-$ screensmith font-dpi set 120      # bigger text, same widget sizes
-$ screensmith xwayland set 1.25      # scale X11 apps to match
-$ screensmith xwayland reset         # let KWin derive it from the display
+$ screensmith font-dpi set 120      # 文字变大，控件尺寸不变
+$ screensmith xwayland set 1.25      # 让 X11 程序跟上缩放
+$ screensmith xwayland reset         # 交回给 KWin 按显示缩放推导
 ```
 
-### Presets
+### 预设
 
-If you would rather not think about it:
+懒得想就用预设：
 
 ```console
-$ screensmith preset compact     # 0.75 everywhere, sharp
-$ screensmith preset balanced    # 1.0, sharp
-$ screensmith preset hi-dpi      # 2.0, sharp
+$ screensmith preset compact     # 全部 0.75，且清晰
+$ screensmith preset balanced    # 1.0，且清晰
+$ screensmith preset hi-dpi      # 2.0，且清晰
 ```
 
-### Undo
+### 撤销
 
 ```console
-$ screensmith backup              # snapshot into ~/.config/screensmith-backups/
+$ screensmith backup              # 快照存到 ~/.config/screensmith-backups/
 $ screensmith restore ~/.config/screensmith-backups/20260930-141205
 ```
 
-Every write is also snapshotted to `~/.config/screensmith-undo/` first, so the
-worst case is one directory of files to copy back by hand.
+每次写入前也都会快照到 `~/.config/screensmith-undo/`，所以最坏情况不过是多了一个目录让你手动拷回来。
 
-## Diagnose
+## 诊断
 
 ```console
 $ screensmith doctor
@@ -146,89 +127,72 @@ $ screensmith doctor
 5 ok, 2 warning(s), 0 error(s)
 ```
 
-Exit status is 1 if anything is an error, so it works in a health check.
+只要有 error，退出码就是 1，所以可以直接用在健康检查脚本里。
 
-## How it works
+## 原理
 
-Plasma's scaling state lives in four places, and they are not documented
-anywhere obvious:
+Plasma 的缩放状态分散在四个地方，而且没有任何一个地方有文档：
 
-| What | Where | Takes effect |
+| 是什么 | 在哪里 | 生效时机 |
 | --- | --- | --- |
-| Per-display scale | `kscreen-doctor`, persisted to `~/.config/kwinoutputconfig.json` | immediately |
-| XWayland multiplier | `~/.config/kwinrc`, `[Xwayland] Scale` | immediately |
-| Rounding policy | `~/.config/plasma-workspace/env/*.desktop` | next login |
-| Font DPI | same | next login |
+| 每块屏幕的缩放 | `kscreen-doctor`，持久化到 `~/.config/kwinoutputconfig.json` | 立刻 |
+| XWayland 倍数 | `~/.config/kwinrc`，`[Xwayland] Scale` | 立刻 |
+| 舍入策略 | `~/.config/plasma-workspace/env/*.desktop` | 下次登录 |
+| 字体 DPI | 同上 | 下次登录 |
 
-Env vars go in `plasma-workspace/env/` rather than `/etc/environment` or your
-shell profile because Plasma launches apps itself and only sources that
-directory. Screensmith writes an `env`-style plugin named
-`screensmith-qt-scaling.desktop`, so it never touches a plugin you created.
+环境变量要放在 `plasma-workspace/env/`，而不是 `/etc/environment` 或你的 shell 配置里，因为**是 Plasma 在启动你的程序**，而它只加载那个目录。screensmith 会写一个名叫 `screensmith-qt-scaling.desktop` 的 env 插件，所以你自建的插件永远不会被碰到。
 
-Only the keys screensmith owns are ever written. Your `kwinrc` is edited in
-place, line by line: comments, ordering and unrelated groups survive.
+screensmith 只写它自己那几项 key。你的 `kwinrc` 是逐行原地修改的：注释、顺序、以及无关的分组都会原样保留。
 
-One thing KWin does for you, which is worth knowing because it is not obvious:
-changing the display scale through `kscreen-doctor` (or the settings GUI)
-keeps `[Xwayland] Scale` in step automatically. The two only drift when you
-edit them by different means, or restore `kwinrc` from an old backup. `doctor`
-checks for it.
+有一件 KWin 会替你做、但并不显然因而值得知道的事：通过 `kscreen-doctor`（或设置界面）改显示缩放时，`[Xwayland] Scale` 会**自动保持同步**。这两个值只在你用不同方式改它们、或者从旧备份里恢复 `kwinrc` 时才会走偏。`doctor` 会检查这一点。
 
-## Safety
+## 安全性
 
-- Every config write is atomic (temp file, fsync, rename). KWin reads these
-  files continuously; a half-written `kwinrc` can leave a session unconfigurable.
-- Permissions are preserved on the files it rewrites.
-- `--offline` writes take a backup first.
-- `screensmith restore` asks before overwriting, and snapshots what it replaces.
-- Invalid input is rejected with an explanation, never partially applied.
+- 所有配置写入都是原子的（临时文件 → fsync → rename）。KWin 一直在读这些文件，写坏一半的 `kwinrc` 可能导致会话无法配置。
+- 重写文件时保留原有权限位。
+- `--offline` 写入前会先备份。
+- `screensmith restore` 覆盖前会先询问，并把被覆盖的内容另存一份。
+- 非法输入会被拒绝并给出解释，绝不会部分生效。
 
-## Also in this repo
+## 仓库里还有
 
-Tutorials in [`docs/tutorials/`](docs/tutorials/), written against a real
-Plasma 6.7 session:
+`docs/tutorials/` 下的教程，基于真实的 Plasma 6.7 会话写成：
 
-- [Sub-100% scaling, and why 75% is legal](docs/tutorials/01-sub-100-scaling.md)
-- [Small screen survival guide](docs/tutorials/02-small-screen.md)
-- [Fixing blurry and mis-sized apps](docs/tutorials/03-blurry-apps.md)
+- [低于 100% 的缩放，以及 75% 为什么合法](docs/tutorials/01-sub-100-scaling.md)
+- [小屏幕自救指南](docs/tutorials/02-small-screen.md)
+- [修复模糊和尺寸错误的程序](docs/tutorials/03-blurry-apps.md)
 
-Plus a [cheat sheet](docs/CHEATSHEET.md) of the config paths and commands, and
-[CONTRIBUTING.md](CONTRIBUTING.md) if you want to help.
+还有一份[速查表](docs/CHEATSHEET.md)，列出配置路径和命令。想参与开发看 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## Development
+## 开发
 
 ```console
 $ python -m unittest discover -s tests -t tests
 ```
 
-178 tests, no dependencies. They are hermetic: a temporary config home, fixture
-captures of `kscreen-doctor` output, and no reading of your actual session. They
-pass identically here, on a live Plasma desktop, and on a bare CI runner with
-`kscreen-doctor` off `$PATH`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+178 个测试，零依赖。它们是 hermetic 的：使用临时配置目录、`kscreen-doctor` 输出的固定样本，完全不读取你真实的会话状态。在本机、真实的 Plasma 桌面上、以及把 `kscreen-doctor` 从 `$PATH` 移除的干净 CI runner 上，结果完全一致。
 
-## Status
+## 状态
 
-Beta, and specific about what has and has not been verified.
+Beta，并且对哪些验证过、哪些没验证说得很具体。
 
-**Verified on this machine** (Plasma 6.7.5, Wayland, Arch Linux, kscreen 6.7.5):
+**在本机验证过**（Plasma 6.7.5、Wayland、Arch Linux、kscreen 6.7.5）：
 
-- scale set / get / reset on a live output, and the value surviving in
-  `kwinoutputconfig.json`
-- `kwinrc` `[Xwayland] Scale` being updated by KWin in step with the display scale
-- `status`, `outputs`, `doctor` against a real session
-- `backup` and `restore` round-tripping real config files
+- 在活动输出上执行 scale set / get / reset，以及数值确实写进了 `kwinoutputconfig.json`
+- KWin 让 `kwinrc` 的 `[Xwayland] Scale` 随显示缩放同步更新
+- `status`、`outputs`、`doctor` 对着真实会话运行
+- `backup` 和 `restore` 对真实配置文件的往返
 
-**Verified only by tests**, i.e. against fixtures and mocked `kscreen-doctor`
-output rather than a live session: multi-monitor layouts, `--offline`,
-`preset`, the `restore` undo snapshots, and every `--json` mode.
+**仅通过测试验证**（即对着样本数据和 mock 过的 `kscreen-doctor` 输出，而不是真实会话）：多显示器布局、`--offline`、`preset`、`restore` 的撤销快照，以及全部 `--json` 模式。
 
-**Not verified**: Plasma 5, non-KDE Wayland compositors, X11 sessions (where
-fractional scaling does not exist), and Plasma versions other than 6.7.x.
-Contributions with real-session output from those configurations are welcome.
+**未验证**：Plasma 5、非 KDE 的 Wayland 合成器、X11 会话（那里根本不存在分数缩放），以及 6.7.x 以外的 Plasma 版本。欢迎带着这些环境下的真实输出来提交 PR。
 
-It is also Linux-only and assumes `kscreen-doctor` is on `PATH`; the config-file
-parts would work anywhere, but nothing has been tested there.
+另外它是仅限 Linux 的，并且假定 `kscreen-doctor` 在 `PATH` 上。配置文件那部分逻辑换个平台也能跑，但没有任何测试覆盖。
 
-## License
+## 许可
 
-MIT.
+MIT。
+
+---
+
+> **本项目全程由 OpenCode 自动生成，无人工干预。** 代码、文档、测试均由 AI 代理独立产出，未经人工撰写或审阅。

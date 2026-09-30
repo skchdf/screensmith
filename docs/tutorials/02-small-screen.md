@@ -1,174 +1,153 @@
-# Small screen survival guide
+# 小屏幕自救指南
 
-1366×768 is the resolution most cheap laptops shipped with for a decade. It is
-small. This is everything I have found that actually helps, ordered by how much
-it helps.
+1366×768 是廉价笔记本用了十年的分辨率。它很小。这是我能找到的**真正有帮助**的所有东西，按帮助大小排序。
 
-Everything here is KDE Plasma on Wayland, Plasma 6.7.5.
+全部基于 KDE Plasma + Wayland，Plasma 6.7.5。
 
-## 1. Shrink the scale
+> **本项目全程由 OpenCode 自动生成，无人工干预。** 未经人工撰写或审阅。
 
-The biggest single win, and the one the GUI does not offer below 100%.
+## 1. 把缩放调小
+
+单项收益最大的一个，也是界面唯一不给 100% 以下的。
 
 ```console
 $ screensmith scale set eDP-1 0.75
 ```
 
-1366×768 becomes a 1821×1024 workspace. See
-[Sub-100% scaling](01-sub-100-scaling.md) for the details.
+1366×768 变成 1821×1024 的工作区。详见[低于 100% 的缩放](01-sub-100-scaling.md)。
 
-## 2. Shortcut: go back to 100% and just make the text smaller
+## 2. 偷懒方案：缩放回 100%，只把字调小
 
-If the reason you want sub-100% scale is "too much text", this is less
-disorienting. Widgets keep their size; only text shrinks:
+如果你想要低于 100% 的理由是"字太多了"，这个办法没那么让人晕头转向。控件保持原尺寸，只有文字缩小：
 
 ```console
 $ screensmith font-dpi set 84
 ```
 
-84 is about 87% of the usual 96. Below about 72 text gets uncomfortable.
+84 大约是常规 96 的 87%。低于 72 左右文字就难受了。
 
-The trade-off against scale: font DPI does not give you extra workspace, it
-just fits more text into the same space. Scale does both.
+和调缩放相比的取舍：字体 DPI 不会给你额外的工作区，只是让同样空间里塞下更多文字。缩放两样都给。
 
-## 3. Hide the panel and get the height back
+## 3. 藏掉面板，把高度拿回来
 
-The Plasma panel takes 30–50px. Auto-hide it:
+Plasma 面板占 30–50px。设置自动隐藏：
 
 ```console
 $ kwriteconfig6 --file plasmarc --group Plasma --key ApperiancePanelDefaultVisibility auto
 ```
 
-Or in the GUI: right-click the panel → *Panel Settings* → *Visibility* →
-*Auto hide*.
+或者用界面：右键面板 → *面板设置* → *可见性* → *自动隐藏*。
 
-With a scale change on top, that is often enough.
+如果再叠加上缩放调整，通常就够了。
 
-## 4. Shrink window titlebars
+## 4. 压缩标题栏
 
-KDE Frameworks 6 lets you set titlebar height explicitly:
+KDE Frameworks 6 允许显式设置标题栏高度：
 
 ```console
 $ kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key titleBarHeight "22"
 ```
 
-And enable smaller buttons:
+以及启用小按钮：
 
 ```console
 $ kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft ""
 $ kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight "⤵;⤬;⤫"
 ```
 
-Restart KWin for either: `qdbus6 org.kde.KWin /KWin reconfigure`.
+两个都需要重启 KWin：`qdbus6 org.kde.KWin /KWin reconfigure`。
 
-## 5. Use one virtual desktop, in a sensible shape
+## 5. 只用一个虚拟桌面，并排成合理的形状
 
-Plasma defaults to a 2×2 grid of virtual desktops on a small screen, which
-gives you four tiny workspaces and means you always have windows on two of
-them. One desktop, one row, is calmer:
+Plasma 在小屏上默认是 2×2 的虚拟桌面网格，那会给你四个很小的空间，意味着你的窗口永远同时占着其中两个。改成单个、单行，会安静很多：
 
 ```console
-$ screensmith status                        # sanity check first
+$ screensmith status                        # 先做个检查
 $ kwriteconfig6 --file kwinrc --group Desktops --key Number 1
 $ kwriteconfig6 --file kwinrc --group Desktops --key Rows 1
 ```
 
-Requires logging out and back in. Consider KWin's tiling scripting for
-arranging windows instead of virtual desktops:
+需要注销重新登录。另一个思路是用 KWin 的平铺脚本来排布窗口，从而彻底不用虚拟桌面：
 
 ```console
 $ kwriteconfig6 --file kwinrc --group Plugins --key kwinscriptEnabled true
 ```
 
-## 6. Tiling with keyboard shortcuts
+## 6. 用键盘快捷键做平铺
 
-The highest-value change on a small screen, honestly. Drag-to-arrange is
-wasteful when you have 768 vertical pixels.
+在只有 768 像素高的屏幕上，这大概是**收益最高的单项改动**。当你只有 768 像素垂直空间时，拖拽排布是非常浪费的。
 
-KWin's built-in tiling (Plasma 6) works with `Meta` by default:
+KWin 的内置平铺（Plasma 6）默认用 `Meta` 键：
 
-| Key | Action |
+| 按键 | 动作 |
 | --- | --- |
-| `Meta+T` | tile / untile the focused window |
-| `Meta+Shift+←` | move window to the left half |
-| `Meta+Shift+→` | move to the right half |
+| `Meta+T` | 平铺 / 取消平铺当前窗口 |
+| `Meta+Shift+←` | 窗口移到左半边 |
+| `Meta+Shift+→` | 窗口移到右半边 |
 
-Enable it in *System Settings → Desktop → Tiling*. More layouts live in
-[krohnkite](https://invent.kde.org/plasma/kwin), which adds columns, grids and
-resizable splits.
+在*系统设置 → 桌面 → 平铺*里启用。更多布局在
+[krohnkite](https://invent.kde.org/plasma/kwin)，它加了分栏、网格和可调整大小的分割。
 
-## 7. Trim the window decoration further
+## 7. 再压一点窗口装饰
 
-If you use Breeze or a similar theme, the titlebar padding is part of the
-theme, not a setting. A small per-user theme override does more than the
-options above.
+如果你用 Breeze 或类似主题，标题栏内边距是主题的一部分，不是设置项。一个小的用户级主题覆盖比上面那些选项更有效。
 
-## 8. Font choice matters more than size
+## 8. 字体选择比字号更重要
 
-At 768 pixels tall, a font with a tall x-height buys you more legible text at
-the same nominal size. Good options:
+在 768 像素的高度上，**x 高度**大的字体能在同样标称字号下塞下更多可读的文字。几个好选择：
 
-- **Noto Sans** — high x-height, very legible, already on most systems
-- **Inter** — designed for screen UI specifically
-- **Cantarell** — the GNOME default, good hinting at small sizes
+- **Noto Sans** —— x 高度高，非常易读，多数系统自带
+- **Inter** —— 专门为屏幕 UI 设计的
+- **Cantarell** —— GNOME 默认字体，小字号下 hinting 不错
 
 ```console
 $ fc-list | grep -i inter
 ```
 
-Avoid serif or monospace as your UI font at this size — they cost vertical space
-and read worse when small.
+这个尺寸下，避免用衬线或等宽字体做 UI 字体 —— 它们浪费垂直空间，而且变小时更难读。
 
-## 9. Reduce panel height
+## 9. 压缩面板高度
 
-Plasma's panel respects a fixed height setting. Below ~28px the panel widgets
-start getting cramped, so there is a floor.
+Plasma 的面板支持固定高度设置。低于约 28px 面板控件就开始挤了，所以这里有个下限。
 
-## 10. Consider the external monitor, honestly
+## 10. 说实话，考虑外接显示器
 
-If you dock regularly, a 1080p external at 100% gives you 2560×1080 of
-workspace for the cost of one cable. The laptop panel can stay at 0.75 and the
-external at 1.0.
+如果你经常接外设，一台 1080p 外接显示器在 100% 下能给你 2560×1080 的工作区，代价只是一根线。笔记本屏保持 0.75，外接屏保持 1.0。
 
 ```console
 $ screensmith scale set eDP-1 0.75
 $ screensmith scale set HDMI-1 1
 ```
 
-## What did not help
+## 试过但没用的方法
 
-Recording honestly, since these come up:
+如实记录，因为这些方法总会被人提起来：
 
-- **Lowering the resolution.** 1366×768 → 1024×768 makes everything blurry
-  and *reduces* your workspace. Modern panels interpolate; you get neither
-  sharpness nor space.
-- **Scaling the panel's "UI scale" in the display settings past 100%** — same
-  feature as item 1, still no help below 100%.
-- **Hiding the taskbar and using only the panel.** Manageable, but you lose
-  window switching. KRunner (`Alt+Space`) covers most of it.
+- **降低分辨率。** 1366×768 → 1024×768 会让一切都变模糊，而且**减少**你的工作区。现代面板会插值，你既得不到清晰度也得不到空间。
+- **在显示设置里把面板"UI 缩放"往上调过 100%** —— 和第 1 条是同一个功能，100% 以下同样没用。
+- **只留任务栏不要面板。** 能凑合，但你会失去窗口切换。KRunner（`Alt+Space`）能覆盖大部分需求。
 
-## A reasonable final configuration
+## 一份合理的最终配置
 
-For a 1366×768 panel:
+针对 1366×768 面板：
 
 ```console
-$ screensmith preset compact          # scale 0.75, PassThrough
+$ screensmith preset compact          # 缩放 0.75 + PassThrough
 $ screensmith font-dpi set 90
 $ kwriteconfig6 --file kwinrc --group org.kde.kdecoration2 --key titleBarHeight "24"
 $ kwriteconfig6 --file kwinrc --group Desktops --key Number 1
 $ kwriteconfig6 --file kwinrc --group Desktops --key Rows 1
 ```
 
-Log out, log back in, enable tiling, and bind `Meta+T`.
+注销、重新登录、启用平铺，绑定 `Meta+T`。
 
-## Check it
+## 检查一下
 
 ```console
 $ screensmith doctor
 $ screensmith status
 ```
 
-If `doctor` is clean and you have tiling bound, you have done about as much as
-software can do about a 1366×768 panel.
+如果 `doctor` 是干净的，而且你绑好了平铺，那关于一块 1366×768 面板，软件能做的基本都做完了。
 
-Next: [Fixing blurry and mis-sized apps](03-blurry-apps.md).
+下一篇：[修复模糊和尺寸错误的程序](03-blurry-apps.md)。
