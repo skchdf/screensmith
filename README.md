@@ -201,9 +201,10 @@ Plus a [cheat sheet](docs/CHEATSHEET.md) of the config paths and commands, and
 $ python -m unittest discover -s tests -t tests
 ```
 
-173 tests, no dependencies. Most of them are hermetic — they run against a
-temporary config home and mocked `kscreen-doctor` output, so nothing touches
-your actual session. See [CONTRIBUTING.md](CONTRIBUTING.md).
+178 tests, no dependencies. They are hermetic: a temporary config home, fixture
+captures of `kscreen-doctor` output, and no reading of your actual session. They
+pass identically here, on a live Plasma desktop, and on a bare CI runner with
+`kscreen-doctor` off `$PATH`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Status
 

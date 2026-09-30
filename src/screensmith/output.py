@@ -150,7 +150,10 @@ def query_outputs(*, check: bool = True) -> list[Output]:
     which is what ``doctor`` wants when probing a headless box.
     """
     if not have("kscreen-doctor"):
-        raise CommandError(["kscreen-doctor"], 127, "not installed (package: kscreen)")
+        if check:
+            raise CommandError(["kscreen-doctor"], 127, "not installed (package: kscreen)")
+        # A missing binary is just another way of having nothing to report.
+        return []
     proc = run(["kscreen-doctor", "-o"], check=check)
     return parse_kscreen_doctor(proc.stdout)
 

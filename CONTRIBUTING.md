@@ -25,13 +25,33 @@ $ python -m unittest discover -s tests -t tests
 That path is the supported one and needs nothing installed. `pytest` works too
 if you have it, since the tests are plain `unittest.TestCase` classes.
 
-The suite must not touch a real desktop session. Tests that need output data use
-the fixtures in `tests/support.py`, and tests that need a config home use a
-temporary directory via `support.fake_session`. If you add a test that shells
-out to the real `kscreen-doctor`, it will fail on CI and on any contributor's
-laptop that is not running Plasma.
+**The suite must not touch the machine it runs on.** This is not a stylistic
+preference: the tests are expected to pass identically on your laptop, on a
+Plasma session, and on a bare CI runner. Three things have to be neutralised
+for that, and all three are done in `CliTestCase.run_cli` and
+`_run` in `test_doctor.py`:
 
-173 tests currently. Adding behaviour without adding a test will be asked about
+- `Session.probe`, which reads the real `$XDG_SESSION_TYPE` and Plasma version
+- `have("kscreen-doctor")`, which is true on a Plasma desktop and false on CI
+- `query_outputs`, which shells out to the running KWin
+
+Fixture data (captured `kscreen-doctor` output, `kwinrc`,
+`kwinoutputconfig.json`) lives in `tests/support.py`. Config homes are
+temporary directories.
+
+If you add a test that depends on any of the above being present in the
+environment, it will pass locally and fail in CI. `status` and `doctor` have
+explicit tests for the "kscreen-doctor is missing" path; keep that coverage when
+touching either.
+
+You can check for accidental environment dependencies by running the suite with
+`kscreen-doctor` off `$PATH`:
+
+```console
+$ PATH=/usr/bin:/bin python -m unittest discover -s tests -t tests
+```
+
+178 tests currently. Adding behaviour without adding a test will be asked about
 in review.
 
 ## Style

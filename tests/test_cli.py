@@ -17,6 +17,14 @@ from screensmith.session import Session
 
 
 class CliTestCase(unittest.TestCase):
+    """Base class that makes the CLI testable without a desktop session.
+
+    Two things must be neutralised or the suite passes on a developer's laptop
+    and fails on CI: the availability check for `kscreen-doctor`, and the probe
+    that reads the real session. Both are patched in :meth:`run_cli`, so no test
+    can accidentally depend on the machine it runs on.
+    """
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.home = Path(self.tmp.name)
@@ -27,11 +35,14 @@ class CliTestCase(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_cli(self, *argv: str) -> tuple[int, str, str]:
+    def run_cli(self, *argv: str, have_kscreen: bool = True) -> tuple[int, str, str]:
         """Invoke main() with a fake session, capturing stdout and stderr."""
         out, err = io.StringIO(), io.StringIO()
         with (
             mock.patch.object(Session, "probe", return_value=self.session),
+            mock.patch.object(cli, "have", return_value=have_kscreen),
+            mock.patch.object(cli.output_mod, "have", return_value=have_kscreen),
+            mock.patch.object(cli.doctor, "have", return_value=have_kscreen),
             contextlib.redirect_stdout(out),
             contextlib.redirect_stderr(err),
         ):
@@ -363,6 +374,33 @@ class StatusTests(CliTestCase):
         code, out, _ = self.run_cli("doctor")
         self.assertEqual(code, 0)
         self.assertIn("ok,", out)
+
+    def test_doctor_reports_an_error_when_kscreen_is_absent(self):
+        code, out, _ = self.run_cli("doctor", have_kscreen=False)
+        self.assertEqual(code, 1)
+        self.assertIn("kscreen-doctor", out)
+
+    def test_doctor_reports_an_error_on_an_x11_session(self):
+        self.session = Session(type="x11", plasma="6.7.5", config_home=self.home)
+        code, out, _ = self.run_cli("doctor")
+        self.assertEqual(code, 1)
+        self.assertIn("Wayland", out)
+
+    def test_scale_without_kscreen_fails_cleanly(self):
+        code, _, err = self.run_cli("scale", "get", have_kscreen=False)
+        self.assertEqual(code, 1)
+        self.assertIn("kscreen-doctor is required", err)
+
+    def test_outputs_without_kscreen_fails_cleanly(self):
+        code, _, err = self.run_cli("outputs", have_kscreen=False)
+        self.assertEqual(code, 1)
+        self.assertIn("kscreen-doctor is required", err)
+
+    def test_status_still_renders_without_kscreen(self):
+        # status and doctor degrade instead of refusing to run.
+        code, out, _ = self.run_cli("status", have_kscreen=False)
+        self.assertEqual(code, 0)
+        self.assertIn("Session", out)
 
 
 if __name__ == "__main__":
