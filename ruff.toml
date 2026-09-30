@@ -1,0 +1,25 @@
+line-length = 110
+target-version = "py310"
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # import sorting
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "SIM", # simplify
+    "RET", # return consistency
+]
+ignore = [
+    "E501",   # line length is handled by the formatter
+    "B008",   # argparse defaults are function calls by design
+    "SIM105", # contextlib.suppress is not clearer than try/except here
+]
+
+[lint.per-file-ignores]
+# Tests deliberately shadow builtins and import a local helper module.
+"tests/*" = ["E402"]
+
+[lint.isort]
+known-first-party = ["screensmith"]

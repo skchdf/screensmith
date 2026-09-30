@@ -1,0 +1,36 @@
+name: Feature request
+description: Something screensmith should be able to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: |
+        Describe the situation, not the solution. "I want to scale X11 apps
+        differently from Wayland apps" is more useful than "add a
+        --xwayland-only flag".
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-workaround
+    attributes:
+      label: What do you do now?
+      description: The config file you edit, or the kwriteconfig6 command you run.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: config
+    attributes:
+      label: Which config file does this involve?
+      options:
+        - kwinoutputconfig.json
+        - kwinrc
+        - plasma-workspace/env plugin
+        - plasmarc
+        - Something else
+        - None / not sure
+    validations:
+      required: true

@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in screensmith did not behave as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Screensmith is a thin wrapper around `kscreen-doctor` and two config
+        files. Most problems are one of those three misbehaving, so please
+        include the output of `screensmith doctor` and `screensmith status`.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what you expected instead.
+      placeholder: |
+        $ screensmith scale set eDP-1 1.5
+        expected the panel to be 150%, but it stayed at 100%
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: `screensmith doctor` output
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: `screensmith status` output
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: session
+    attributes:
+      label: Session type
+      description: Output of `echo $XDG_SESSION_TYPE`
+      placeholder: wayland
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Plasma and screensmith
+      placeholder: Plasma 6.7.5, screensmith 0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: |
+        Relevant config file contents, whether the change survived a reboot,
+        which applications looked wrong.
