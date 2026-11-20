@@ -14,17 +14,31 @@ import stat
 import tempfile
 from pathlib import Path
 
-__all__ = ["atomic_write", "backup_file"]
+__all__ = ["atomic_write", "backup_file", "mode_of"]
 
 
-def atomic_write(path: Path, text: str, *, mode: int = 0o644) -> None:
+def atomic_write(path: Path, text: str, *, mode: int | None = None) -> None:
     """Write *text* to *path* atomically.
 
     The temp file is created in the destination directory so that the final
     ``os.replace`` stays on one filesystem and is therefore atomic.
+
+    By default the destination's existing permission bits are preserved (0644
+    for a new file); pass *mode* to force something else. Preserving the mode is
+    the default because a user may have made a config group-writable or
+    read-only on purpose, and no caller should have to remember to ask.
+
+    If *path* is a symlink the write goes to the link's target instead of
+    replacing the link: config files managed with dotfile stow/GNU tools must
+    stay symlinks, and ``os.replace`` over one would silently turn it into a
+    regular file.
     """
     path = Path(path)
+    if path.is_symlink():
+        path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
+    if mode is None:
+        mode = mode_of(path)
 
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
     try:

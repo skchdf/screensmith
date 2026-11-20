@@ -26,7 +26,9 @@ _COLOURS = {
 
 def use_colour(stream=None) -> bool:
     stream = stream or sys.stdout
-    if os.environ.get("NO_COLOR") is not None:
+    # Per https://no-color.org the variable disables colour when present and
+    # not an empty string.
+    if os.environ.get("NO_COLOR"):
         return False
     if os.environ.get("TERM") == "dumb":
         return False

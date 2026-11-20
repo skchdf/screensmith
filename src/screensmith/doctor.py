@@ -154,8 +154,8 @@ def _check_xwayland(session: Session, outputs: list[output_mod.Output]) -> Findi
                 "XWayland scale",
                 "1, while a fractional display scale is active",
                 "X11 apps will not pick up the fractional factor and will look "
-                "smaller than everything else. Run: screensmith xwayland set to "
-                "match your display scale",
+                "smaller than everything else. Set it with: screensmith xwayland "
+                "set <display scale>",
             )
         return Finding("ok", "XWayland scale", "1 (correct for whole-number display scales)")
 

@@ -71,25 +71,54 @@ class EnvPluginTests(unittest.TestCase):
 
     def test_unset_removes_only_the_named_variable(self):
         envfile.write_vars(self.config_home, "screensmith-qt-scaling", {"FOO": "bar", "BAZ": "qux"})
-        removed = envfile.unset_vars(self.config_home, ["FOO"])
+        removed = envfile.unset_vars(self.config_home, ["FOO"], "screensmith-qt-scaling")
         self.assertEqual(removed, ["FOO"])
         self.assertEqual(envfile.load_env(self.config_home), {"BAZ": "qux"})
 
     def test_unset_deletes_the_file_once_empty(self):
         envfile.write_vars(self.config_home, "screensmith-qt-scaling", {"FOO": "bar"})
-        envfile.unset_vars(self.config_home, ["FOO"])
+        envfile.unset_vars(self.config_home, ["FOO"], "screensmith-qt-scaling")
         self.assertFalse((self.env / "screensmith-qt-scaling.desktop").exists())
 
     def test_unset_of_an_absent_variable_reports_nothing(self):
-        self.assertEqual(envfile.unset_vars(self.config_home, ["NOT_SET"]), [])
+        self.assertEqual(envfile.unset_vars(self.config_home, ["NOT_SET"], "screensmith-qt-scaling"), [])
+
+    def test_unset_leaves_other_plugins_alone(self):
+        # reset must never edit a plugin screensmith does not own, even when
+        # that plugin defines the very variable being unset.
+        self.write("user-own", "[Desktop Entry]\nExec=env QT_SCALE_FACTOR_ROUNDING_POLICY=Round\n")
+        envfile.write_vars(self.config_home, "screensmith-qt-scaling", {"QT_FONT_DPI": "96"})
+        removed = envfile.unset_vars(
+            self.config_home, ["QT_SCALE_FACTOR_ROUNDING_POLICY"], "screensmith-qt-scaling"
+        )
+        self.assertEqual(removed, [])
+        self.assertTrue((self.env / "user-own.desktop").exists())
+        self.assertEqual(
+            envfile.load_env(self.config_home),
+            {"QT_SCALE_FACTOR_ROUNDING_POLICY": "Round", "QT_FONT_DPI": "96"},
+        )
 
     def test_never_touches_another_plugin(self):
         self.write("someone-elses", PLUGIN_TEXT)
         envfile.write_vars(self.config_home, "screensmith-qt-scaling", {"FOO": "bar"})
-        envfile.unset_vars(self.config_home, ["FOO"])
+        envfile.unset_vars(self.config_home, ["FOO"], "screensmith-qt-scaling")
         self.assertEqual(
             envfile.load_env(self.config_home), {"QT_SCALE_FACTOR_ROUNDING_POLICY": "PassThrough"}
         )
+
+    def test_write_vars_rejects_an_invalid_variable_name(self):
+        for bad in ("1FOO", "FOO-BAR", "FOO BAR", ""):
+            with self.subTest(name=bad), self.assertRaises(ValueError):
+                envfile.write_vars(self.config_home, "screensmith-qt-scaling", {bad: "x"})
+
+    def test_write_vars_rejects_a_multi_line_value(self):
+        # A raw newline would break the single-line Exec= entry.
+        with self.assertRaises(ValueError):
+            envfile.write_vars(self.config_home, "screensmith-qt-scaling", {"FOO": "a\nb"})
+
+    def test_ignores_variables_with_unusable_names_when_parsing(self):
+        self.write("odd", "[Desktop Entry]\nExec=env 1FOO=x GOOD=y\nType=Application\n")
+        self.assertEqual(envfile.load_env(self.config_home), {"GOOD": "y"})
 
 
 class RoundingPolicyTests(unittest.TestCase):

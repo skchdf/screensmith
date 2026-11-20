@@ -73,7 +73,7 @@ def set_rounding(config_home: Path, policy: str) -> Path:
 
 
 def unset_rounding(config_home: Path) -> bool:
-    return bool(envfile.unset_vars(config_home, ["QT_SCALE_FACTOR_ROUNDING_POLICY"]))
+    return bool(envfile.unset_vars(config_home, ["QT_SCALE_FACTOR_ROUNDING_POLICY"], PLUGIN_NAME))
 
 
 def get_font_dpi(config_home: Path) -> int | None:
@@ -96,7 +96,7 @@ def set_font_dpi(config_home: Path, dpi: int) -> Path:
 
 
 def unset_font_dpi(config_home: Path) -> bool:
-    return bool(envfile.unset_vars(config_home, ["QT_FONT_DPI"]))
+    return bool(envfile.unset_vars(config_home, ["QT_FONT_DPI"], PLUGIN_NAME))
 
 
 def get_xwayland_scale(config_home: Path) -> float:

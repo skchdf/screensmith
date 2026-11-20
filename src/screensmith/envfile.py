@@ -16,6 +16,7 @@ File shape, as written by Plasma itself::
 
 from __future__ import annotations
 
+import re
 import shlex
 from pathlib import Path
 
@@ -26,6 +27,9 @@ __all__ = ["env_dir", "Plugin", "load_env", "write_vars", "unset_vars", "find_va
 
 _DESKTOP_ENTRY = "Desktop Entry"
 _API_MARKER = "X-Plasma-API=develprovenfalse"
+
+#: POSIX portable character set for environment variable names.
+_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def env_dir(config_home: Path) -> Path:
@@ -52,12 +56,19 @@ def _parse_env_plugin(text: str) -> dict[str, str]:
     variables: dict[str, str] = {}
     for arg in args:
         name, sep, value = arg.partition("=")
-        if sep and name and name.replace("_", "").isalnum():
+        if sep and _VAR_NAME_RE.match(name):
             variables[name] = value
     return variables
 
 
 def _render_env_plugin(variables: dict[str, str]) -> str:
+    for name, value in variables.items():
+        if not _VAR_NAME_RE.match(name):
+            raise ValueError(f"{name!r} is not a valid environment variable name")
+        # A raw newline would break the single-line Exec= entry, and Plasma
+        # would then silently load half of it.
+        if "\n" in value or "\r" in value:
+            raise ValueError(f"refusing to write a multi-line value for {name}")
     assignment = " ".join(f"{name}={shlex.quote(value)}" for name, value in variables.items())
     return f"[{_DESKTOP_ENTRY}]\nExec=env {assignment}\nType=Application\n{_API_MARKER}\n"
 
@@ -112,19 +123,20 @@ def write_vars(config_home: Path, plugin_name: str, variables: dict[str, str]) -
     return plugin.path
 
 
-def unset_vars(config_home: Path, names: list[str]) -> list[str]:
-    """Remove *names*, deleting the plugin file once it becomes empty.
+def unset_vars(config_home: Path, names: list[str], plugin_name: str) -> list[str]:
+    """Remove *names* from the named plugin, deleting the file once it is empty.
 
-    Returns the names that were actually defined.
+    Only the named plugin is touched: a user's own plugin may also define these
+    variables, and screensmith never edits files it does not own. Returns the
+    names that were actually defined there.
     """
-    removed: list[str] = []
-    for plugin in _iter_plugins(env_dir(config_home)):
-        remaining = {k: v for k, v in plugin.variables.items() if k not in names}
-        if len(remaining) == len(plugin.variables):
-            continue
-        removed.extend(k for k in plugin.variables if k in names)
-        if remaining:
-            plugin.save(remaining)
-        else:
-            plugin.delete()
+    plugin = Plugin(env_dir(config_home) / f"{plugin_name}.desktop")
+    remaining = {k: v for k, v in plugin.variables.items() if k not in names}
+    if len(remaining) == len(plugin.variables):
+        return []
+    removed = [k for k in plugin.variables if k in names]
+    if remaining:
+        plugin.save(remaining)
+    else:
+        plugin.delete()
     return removed

@@ -69,6 +69,8 @@ def run(argv: list[str], *, check: bool = True, timeout: float = 10.0) -> subpro
             argv,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             check=False,
         )

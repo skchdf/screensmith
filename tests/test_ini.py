@@ -36,6 +36,15 @@ class GetValueTests(unittest.TestCase):
         text = "[A]\nkey=1\n\n[B]\nkey=2\n"
         self.assertEqual(ini.get_value(text, "B", "key"), "2")
 
+    def test_duplicate_keys_read_last_wins(self):
+        # KConfig honours the last assignment of a key within a group.
+        text = "[G]\nkey=1\nkey=2\n"
+        self.assertEqual(ini.get_value(text, "G", "key"), "2")
+
+    def test_duplicate_groups_read_last_wins(self):
+        text = "[G]\nkey=1\n\n[Other]\nkey=x\n\n[G]\nkey=2\n"
+        self.assertEqual(ini.get_value(text, "G", "key"), "2")
+
 
 class SetValueTests(unittest.TestCase):
     def test_replaces_an_existing_value(self):
@@ -81,12 +90,53 @@ class SetValueTests(unittest.TestCase):
         twice = ini.set_value(once, "Xwayland", "Scale", "2")
         self.assertEqual(once, twice)
 
+    def test_setting_a_duplicated_key_leaves_exactly_one(self):
+        text = "[G]\nkey=1\nother=y\nkey=2\n"
+        result = ini.set_value(text, "G", "key", "3")
+        self.assertEqual(ini.get_value(result, "G", "key"), "3")
+        self.assertEqual(result.count("key="), 1)
+        self.assertIn("other=y", result)
+
+    def test_setting_a_key_when_the_group_is_stated_twice(self):
+        # KConfig merges duplicate groups; the later body wins, so the write
+        # must land there, and the earlier stray copy of the key must go.
+        text = "[G]\nkey=1\n\n[H]\nz=x\n\n[G]\nother=2\n"
+        result = ini.set_value(text, "G", "key", "3")
+        self.assertEqual(ini.get_value(result, "G", "key"), "3")
+        self.assertEqual(result.count("key="), 1)
+        self.assertEqual(ini.get_value(result, "G", "other"), "2")
+
+    def test_crlf_file_is_round_tripped_without_touching_other_lines(self):
+        text = "[G]\r\na=1\r\n\r\n[H]\r\nScale=1\r\n"
+        result = ini.set_value(text, "H", "Scale", "2")
+        self.assertEqual(ini.get_value(result, "H", "Scale"), "2")
+        self.assertIn("[G]\r\na=1\r\n", result)  # untouched lines keep their CRLF
+        self.assertTrue(result.endswith("Scale=2\n"))
+
+    def test_preserves_a_file_without_a_trailing_newline(self):
+        result = ini.set_value("[G]\na=1", "G", "b", "2")
+        self.assertEqual(result, "[G]\na=1\nb=2")
+
+    def test_keeps_trailing_blank_lines(self):
+        result = ini.set_value("[G]\na=1\n\n", "G", "a", "2")
+        self.assertEqual(result, "[G]\na=2\n\n")
+
 
 class RemoveValueTests(unittest.TestCase):
     def test_removes_the_line(self):
         result = ini.remove_value(support.KWINRC_SAMPLE, "Xwayland", "Scale")
         self.assertIsNone(ini.get_value(result, "Xwayland", "Scale"))
         self.assertIn("[Xwayland]", result)
+
+    def test_removes_every_duplicate(self):
+        result = ini.remove_value("[G]\nkey=1\nkey=2\nother=y\n", "G", "key")
+        self.assertIsNone(ini.get_value(result, "G", "key"))
+        self.assertIn("other=y", result)
+
+    def test_remove_across_duplicate_groups(self):
+        result = ini.remove_value("[G]\nkey=1\n\n[H]\nz=x\n\n[G]\nkey=2\n", "G", "key")
+        self.assertIsNone(ini.get_value(result, "G", "key"))
+        self.assertEqual(ini.get_value(result, "H", "z"), "x")
 
     def test_missing_key_is_a_no_op(self):
         self.assertEqual(ini.remove_value(support.KWINRC_SAMPLE, "Xwayland", "Nope"), support.KWINRC_SAMPLE)
