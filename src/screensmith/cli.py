@@ -45,6 +45,8 @@ PRESETS: dict[str, Preset] = {
 #: collide with these (see :func:`_destination_for`).
 _BACKUP_FILES = ("kwinrc", "kwinoutputconfig.json")
 
+_SCALE_SET_USAGE = "scale set needs a scale value (try: screensmith scale set eDP-1 1.5)"
+
 
 # --------------------------------------------------------------------------- #
 # helpers
@@ -146,6 +148,10 @@ def cmd_outputs(session: Session, args: argparse.Namespace) -> int:
         ui.emit_json([o.__dict__ for o in outputs])
         return 0
 
+    if not outputs:
+        ui.warn("KWin reported no outputs")
+        return 0
+
     rows = [
         [
             o.name,
@@ -206,12 +212,24 @@ def cmd_scale_get(session: Session, args: argparse.Namespace) -> int:
 
 
 def cmd_scale_set(session: Session, args: argparse.Namespace) -> int:
-    value = parse_scale(args.value)
+    output, value_text = args.output, args.value
+    if value_text is None and output is not None:
+        # `scale set 1.5`: the lone positional must be the value, not a
+        # connector name — connector names never look like numbers.
+        try:
+            parse_scale(output)
+        except ScaleError:
+            raise SystemExit(ui.fail(_SCALE_SET_USAGE)) from None
+        output, value_text = None, output
+    elif value_text is None:
+        raise SystemExit(ui.fail(_SCALE_SET_USAGE))
+
+    value = parse_scale(value_text)
 
     if args.offline:
         config = _config(session)
         text = config.load_text()
-        connector = args.output
+        connector = output
         if connector is None:
             recorded = config.connectors()
             if len(recorded) != 1:
@@ -225,7 +243,8 @@ def cmd_scale_set(session: Session, args: argparse.Namespace) -> int:
             updated = config.set_scale_text(text, connector, value)
         except KeyError as exc:
             raise SystemExit(ui.fail(str(exc))) from exc
-        backup_file(config.path, config.path.parent / "screensmith-backups")
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        backup_file(config.path, config.path.parent / "screensmith-backups" / stamp)
         atomic_write(config.path, updated, mode=mode_of(config.path))
         print(f"{connector}: scale {format_scale(value)} written to {config.path}")
         ui.warn(
@@ -233,7 +252,7 @@ def cmd_scale_set(session: Session, args: argparse.Namespace) -> int:
         )
         return 0
 
-    target = _pick_output(session, args.output)
+    target = _pick_output(session, output)
     before = target.scale
     try:
         output_mod.set_live_scale(target.name, value)
@@ -434,7 +453,11 @@ def _destination_for(session: Session, filename: str) -> Path | None:
         return session.config_home / filename
     if filename.startswith("env-"):
         stem = filename[len("env-") :]
-        if not stem or "/" in stem:
+        # Backup labels are "env-<real filename>", i.e. they already carry the
+        # .desktop suffix; only one belongs in the restored name.
+        if stem.endswith(".desktop"):
+            stem = stem[: -len(".desktop")]
+        if not stem or "/" in stem or "\\" in stem or stem in {".", ".."}:
             return None
         return envfile.env_dir(session.config_home) / f"{stem}.desktop"
     return None
@@ -467,8 +490,10 @@ def build_parser() -> argparse.ArgumentParser:
     scale_get.add_argument("output", nargs="?", help="connector name, e.g. eDP-1")
     scale_get.set_defaults(func=cmd_scale_get)
     scale_set = scale.add_parser("set", help="set a scale factor (accepts 1.5 or 150 percent)")
-    scale_set.add_argument("output", help="connector name, e.g. eDP-1")
-    scale_set.add_argument("value", help="a multiplier or a percentage")
+    scale_set.add_argument(
+        "output", nargs="?", help="connector name, e.g. eDP-1; optional when only one applies"
+    )
+    scale_set.add_argument("value", nargs="?", help="a multiplier or a percentage")
     scale_set.add_argument(
         "--offline",
         action="store_true",
@@ -537,7 +562,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # `status` and `doctor` degrade gracefully without KScreen; the rest cannot.
-    if not have("kscreen-doctor") and args.command in {"outputs", "scale"}:
+    # The exception is `scale set --offline`, which only edits the JSON config
+    # and is exactly what you want on a headless box.
+    needs_kscreen = args.command in {"outputs", "scale"} and not getattr(args, "offline", False)
+    if not have("kscreen-doctor") and needs_kscreen:
         raise SystemExit(ui.fail("kscreen-doctor is required (package: kscreen)"))
 
     try:

@@ -48,7 +48,7 @@ _screensmith() {
             case "$words[1]:$words[2]" in
                 scale:set)
                     _arguments '--offline[write the config file, do not talk to KWin]' \
-                        '1:output:_screensmith_outputs' \
+                        '1:output or scale value:_screensmith_outputs' \
                         '2:scale factor:'
                     ;;
                 scale:get|scale:reset)
