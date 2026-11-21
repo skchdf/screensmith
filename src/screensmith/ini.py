@@ -90,7 +90,9 @@ def get_value(text: str, group: str, key: str) -> str | None:
     spans = [(start, end) for name, start, end in iter_groups(text) if name == group]
     value: str | None = None
     for offset in _matching_keys(lines, spans, key):
-        value = split_kv(lines[offset])[1]
+        pair = split_kv(lines[offset])
+        if pair is not None:
+            value = pair[1]
     return value
 
 

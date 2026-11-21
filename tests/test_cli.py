@@ -306,9 +306,7 @@ class ScaleCliTests(CliTestCase):
 
     def test_set_accepts_a_percentage(self):
         calls: list[list[str]] = []
-        with mock.patch.object(
-            cli.output_mod, "set_live_scale", side_effect=lambda n, v: calls.append(v)
-        ):
+        with mock.patch.object(cli.output_mod, "set_live_scale", side_effect=lambda n, v: calls.append(v)):
             self.run_cli("scale", "set", "LVDS-1", "150%", outputs=self.outputs)
         self.assertEqual(calls, [1.5])
 
@@ -429,7 +427,9 @@ class StatusTests(CliTestCase):
     def test_status_json_shape(self):
         from screensmith.output import parse_kscreen_doctor
 
-        _, out, _ = self.run_cli("--json", "status", outputs=parse_kscreen_doctor(support.KSCREEN_DOCTOR_SAMPLE))
+        _, out, _ = self.run_cli(
+            "--json", "status", outputs=parse_kscreen_doctor(support.KSCREEN_DOCTOR_SAMPLE)
+        )
         payload = json.loads(out)
         self.assertEqual(payload["session"], "wayland")
         self.assertEqual(payload["outputs"][0]["logical"], "1821x1024")

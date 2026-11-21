@@ -133,10 +133,12 @@ def _parse_block(block: list[str]) -> Output | None:
 
     return Output(
         name=str(fields["name"]),
-        index=int(fields["index"]),  # type: ignore[arg-type]
+        # int() 是多 overload 签名，object 实参报 call-overload 而非 arg-type；
+        # 这几处值都来自上面的正则分组，类型实际可靠
+        index=int(fields["index"]),  # type: ignore[call-overload]
         scale=float(fields.get("scale", 1.0)),  # type: ignore[arg-type]
-        width=int(fields.get("width", 0)),  # type: ignore[arg-type]
-        height=int(fields.get("height", 0)),  # type: ignore[arg-type]
+        width=int(fields.get("width", 0)),  # type: ignore[call-overload]
+        height=int(fields.get("height", 0)),  # type: ignore[call-overload]
         connected=bool(fields.get("connected", True)),
         enabled=bool(fields.get("enabled", True)),
         uuid=fields.get("uuid"),  # type: ignore[arg-type]

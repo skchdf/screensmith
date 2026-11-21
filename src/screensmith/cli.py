@@ -93,6 +93,7 @@ def _log_out_of_scale(session: Session, note: str) -> None:
 
 def cmd_status(session: Session, args: argparse.Namespace) -> int:
     outputs = output_mod.query_outputs(check=False)
+    xwayland_scale = qt.get_xwayland_scale(session.config_home)
     payload = {
         "session": session.type,
         "plasma": session.plasma,
@@ -110,7 +111,7 @@ def cmd_status(session: Session, args: argparse.Namespace) -> int:
             for o in outputs
         ],
         "rounding_policy": qt.get_rounding(session.config_home),
-        "xwayland_scale": qt.get_xwayland_scale(session.config_home),
+        "xwayland_scale": xwayland_scale,
         "font_dpi": qt.get_font_dpi(session.config_home),
     }
 
@@ -137,7 +138,7 @@ def cmd_status(session: Session, args: argparse.Namespace) -> int:
         ui.warn("KWin reported no outputs")
     print()
     print(f"{ui.paint('Rounding policy', 'bold')}  {payload['rounding_policy'] or 'unset'}")
-    print(f"{ui.paint('XWayland scale', 'bold')}  {format_scale(payload['xwayland_scale'])}")
+    print(f"{ui.paint('XWayland scale', 'bold')}  {format_scale(xwayland_scale)}")
     print(f"{ui.paint('Font DPI', 'bold')}        {payload['font_dpi'] or 'default'}")
     return 0
 
