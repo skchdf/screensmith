@@ -27,7 +27,8 @@ screensmith doctor                     # 诊断；有 error 时退出码为 1
 
 # 缩放
 screensmith scale get [输出]
-screensmith scale set 输出 数值         # 1.25 或 125%
+screensmith scale set 输出 数值         # 1.25 或 125%；交互终端下 10s 内按 Enter 确认，n/超时自动恢复
+screensmith scale set 输出 数值 --yes   # 跳过确认窗口（脚本用）
 screensmith scale set 输出 数值 --offline
 screensmith scale reset [输出]
 
