@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,12 +20,13 @@ from screensmith.session import Session
 class CliTestCase(unittest.TestCase):
     """Base class that makes the CLI testable without a desktop session.
 
-    Three things must be neutralised or the suite passes on a developer's
+    Four things must be neutralised or the suite passes on a developer's
     laptop and fails on CI: the availability check for `kscreen-doctor`, the
-    probe that reads the real session, and `query_outputs`, which on a real
-    Plasma desktop shells out to the live `kscreen-doctor`. All are patched in
-    :meth:`run_cli`, so no test can accidentally depend on the machine it runs
-    on.
+    probe that reads the real session, `query_outputs`, which on a real
+    Plasma desktop shells out to the live `kscreen-doctor`, and the terminal
+    that `scale set`'s confirm window would otherwise read (and stall on) when
+    the suite is run interactively. All are patched so no test can accidentally
+    depend on the machine it runs on.
     """
 
     def setUp(self):
@@ -33,6 +35,12 @@ class CliTestCase(unittest.TestCase):
         (self.home / "kwinrc").write_text(support.KWINRC_SAMPLE, encoding="utf-8")
         (self.home / "kwinoutputconfig.json").write_text(support.KWINOUTPUTCONFIG_SAMPLE, encoding="utf-8")
         self.session = Session(type="wayland", plasma="6.7.5", config_home=self.home)
+        # scale set's confirm window polls stdin when it thinks it is on a
+        # terminal; keep every test on a non-TTY so running the suite in a
+        # real terminal cannot stall it or trigger a rollback.
+        stdin_patcher = mock.patch.object(sys, "stdin", mock.Mock(isatty=mock.Mock(return_value=False)))
+        stdin_patcher.start()
+        self.addCleanup(stdin_patcher.stop)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -309,6 +317,88 @@ class ScaleCliTests(CliTestCase):
         with mock.patch.object(cli.output_mod, "set_live_scale", side_effect=lambda n, v: calls.append(v)):
             self.run_cli("scale", "set", "LVDS-1", "150%", outputs=self.outputs)
         self.assertEqual(calls, [1.5])
+
+    # -- interactive confirm window -------------------------------------- #
+
+    def _fake_tty(self, read_char: str, timed_out: bool = False):
+        """Swap stdin for a terminal and select() for a scripted answer."""
+        fake = mock.Mock()
+        fake.isatty.return_value = True
+        fake.read.return_value = read_char
+        return (
+            mock.patch.object(sys, "stdin", fake),
+            mock.patch.object(
+                cli.select, "select", return_value=([], [], []) if timed_out else ([fake], [], [])
+            ),
+        )
+
+    def test_set_reverts_when_the_window_times_out(self):
+        calls = []
+        tty, clock = self._fake_tty("", timed_out=True)
+        with (
+            mock.patch.object(
+                cli.output_mod, "set_live_scale", side_effect=lambda n, v: calls.append((n, v))
+            ),
+            tty,
+            clock,
+        ):
+            code, out, err = self.run_cli("scale", "set", "LVDS-1", "1.25", outputs=self.outputs)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [("LVDS-1", 1.25), ("LVDS-1", 0.75)])  # apply, then roll back
+        self.assertIn("reverted to 0.75 (75%)", err)
+        self.assertIn("workspace is now", out)
+
+    def test_set_reverts_when_answered_n(self):
+        calls = []
+        tty, clock = self._fake_tty("n")
+        with (
+            mock.patch.object(
+                cli.output_mod, "set_live_scale", side_effect=lambda n, v: calls.append((n, v))
+            ),
+            tty,
+            clock,
+        ):
+            _, _, err = self.run_cli("scale", "set", "LVDS-1", "1.25", outputs=self.outputs)
+        self.assertEqual(calls, [("LVDS-1", 1.25), ("LVDS-1", 0.75)])
+        self.assertIn("reverted to 0.75 (75%)", err)
+
+    def test_set_keeps_when_confirmed_with_enter(self):
+        calls = []
+        tty, clock = self._fake_tty("\n")
+        with (
+            mock.patch.object(
+                cli.output_mod, "set_live_scale", side_effect=lambda n, v: calls.append((n, v))
+            ),
+            tty,
+            clock,
+        ):
+            code, out, _ = self.run_cli("scale", "set", "LVDS-1", "1.25", outputs=self.outputs)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [("LVDS-1", 1.25)])
+        self.assertIn("kept 1.25 (125%)", out)
+
+    def test_set_yes_skips_the_confirm_window(self):
+        tty, clock = self._fake_tty("")
+        # select would blow up if the window were entered at all.
+        clock.side_effect = AssertionError("confirm window entered despite --yes")
+        with (
+            mock.patch.object(cli.output_mod, "set_live_scale", side_effect=lambda n, v: None),
+            tty,
+            clock,
+        ):
+            code, _, _ = self.run_cli("scale", "set", "LVDS-1", "1.25", "--yes", outputs=self.outputs)
+        self.assertEqual(code, 0)
+
+    def test_set_same_scale_skips_the_confirm_window(self):
+        tty, clock = self._fake_tty("")
+        clock.side_effect = AssertionError("confirm window entered for a no-op scale")
+        with (
+            mock.patch.object(cli.output_mod, "set_live_scale", side_effect=lambda n, v: None),
+            tty,
+            clock,
+        ):
+            code, _, _ = self.run_cli("scale", "set", "LVDS-1", "0.75", outputs=self.outputs)
+        self.assertEqual(code, 0)
 
     def test_set_without_an_output_targets_the_single_enabled_output(self):
         calls = []

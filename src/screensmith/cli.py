@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import select
 import sys
 import time
 from dataclasses import dataclass
@@ -46,6 +47,12 @@ PRESETS: dict[str, Preset] = {
 _BACKUP_FILES = ("kwinrc", "kwinoutputconfig.json")
 
 _SCALE_SET_USAGE = "scale set needs a scale value (try: screensmith scale set eDP-1 1.5)"
+
+#: Seconds an interactive `scale set` waits for confirmation before rolling
+#: back. A wrong scale can make the whole screen unreadable or blank, and a
+#: user staring at an unusable desktop cannot comfortably fix it by hand —
+#: the same reason brightness-guard.sh reverts an unacknowledged brightness.
+_SCALE_CONFIRM_SECONDS = 10
 
 
 # --------------------------------------------------------------------------- #
@@ -212,6 +219,40 @@ def cmd_scale_get(session: Session, args: argparse.Namespace) -> int:
     return 0
 
 
+def _confirm_scale_or_revert(args: argparse.Namespace, name: str, before: float, after: float) -> bool:
+    """Keep a just-applied scale only if the user confirms within the window.
+
+    A wrong scale can leave the screen unreadable or blank, so an interactive
+    session gets _SCALE_CONFIRM_SECONDS to confirm; otherwise the previous
+    scale is restored. Scripts (--yes, --json, non-TTY stdin) skip the prompt:
+    automation must not stall, and a headless caller cannot look at the screen
+    anyway. Returns True when *after* is kept, False when reverted.
+    """
+    if args.yes or _json_mode(args) or before == after or not sys.stdin.isatty():
+        return True
+    print(f"press Enter to keep {describe_scale(after)}, or 'n' to revert to {describe_scale(before)}")
+    confirmed = False
+    for remaining in range(_SCALE_CONFIRM_SECONDS, 0, -1):
+        print(f"\r  auto-revert in {remaining:>2}s  ", end="", flush=True)
+        (ready, _, _) = select.select([sys.stdin], [], [], 1.0)
+        if ready:
+            answer = sys.stdin.read(1)
+            confirmed = answer not in ("n", "N")
+            break
+    print("\r" + " " * 40 + "\r", end="")
+    if not confirmed:
+        try:
+            output_mod.set_live_scale(name, before)
+        except CommandError as exc:
+            raise SystemExit(
+                ui.fail(f"revert failed: {exc}; run: screensmith scale set {name} {describe_scale(before)}")
+            ) from exc
+        ui.warn(f"not confirmed — reverted to {describe_scale(before)}")
+        return False
+    print(f"kept {describe_scale(after)}")
+    return True
+
+
 def cmd_scale_set(session: Session, args: argparse.Namespace) -> int:
     output, value_text = args.output, args.value
     if value_text is None and output is not None:
@@ -268,6 +309,9 @@ def cmd_scale_set(session: Session, args: argparse.Namespace) -> int:
     if target.width and target.height:
         logical_w, logical_h = logical_geometry(target.width, target.height, value)
         print(f"  workspace is now {logical_w}x{logical_h} logical pixels")
+
+    if not _confirm_scale_or_revert(args, target.name, before, value):
+        return 0
 
     policy = qt.get_rounding(session.config_home)
     if is_fractional(value) and policy != "PassThrough":
@@ -495,6 +539,11 @@ def build_parser() -> argparse.ArgumentParser:
         "output", nargs="?", help="connector name, e.g. eDP-1; optional when only one applies"
     )
     scale_set.add_argument("value", nargs="?", help="a multiplier or a percentage")
+    scale_set.add_argument(
+        "--yes",
+        action="store_true",
+        help="apply without the interactive confirm/rollback window",
+    )
     scale_set.add_argument(
         "--offline",
         action="store_true",
